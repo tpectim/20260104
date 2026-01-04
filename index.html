@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Untitled</title>
+    
+
+  </head>
+    
+  <body>
+  <!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>分類配對-語音與重玩版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+            background-color: #f1f5f9;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        /* --- 象限分類區 --- */
+        .category-zone {
+            position: absolute;
+            box-sizing: border-box;
+            border: 2px solid #cbd5e1;
+            background: #ffffff;
+            display: block; 
+            overflow: hidden; 
+            z-index: 10; 
+            transition: all 0.2s;
+        }
+        
+        .category-zone.drag-over {
+            background-color: #f0f9ff;
+            border-color: #3b82f6;
+            box-shadow: inset 0 0 30px rgba(59, 130, 246, 0.3);
+            transform: scale(1.02);
+        }
+
+        .category-zone.feedback-correct { animation: flashGreen 0.5s; }
+        .category-zone.feedback-error { animation: flashRed 0.5s; }
+
+        @keyframes flashGreen {
+            0% { background-color: #dcfce7; border-color: #22c55e; }
+            50% { background-color: #86efac; }
+            100% { background-color: #ffffff; }
+        }
+        @keyframes flashRed {
+            0% { background-color: #fee2e2; border-color: #ef4444; }
+            50% { background-color: #fca5a5; }
+            100% { background-color: #ffffff; }
+        }
+
+        /* --- 籃子標籤 (置中) --- */
+        .category-label {
+            position: absolute;
+            z-index: 5; 
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            width: 140px;
+            height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .category-label .emoji { font-size: 3.5rem; line-height: 1.2; }
+        .category-label .text { 
+            font-size: 1.4rem; 
+            font-weight: 800; 
+            color: #334155; 
+            margin-top: 5px;
+        }
+
+        /* --- 已完成物品 --- */
+        .completed-item {
+            position: absolute;
+            background: white;
+            border: 2px solid #94a3b8;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            z-index: 20;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation: popIn 0.4s;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            80% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* --- 中央待選物品容器 --- */
+        .items-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            gap: 12px;
+            pointer-events: none; 
+            padding: 20px;
+        }
+
+        /* 遊戲物品卡片 */
+        .game-item {
+            background-color: white;
+            border-radius: 16px;
+            border: 3px solid #fbbf24;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.1);
+            cursor: grab;
+            touch-action: none;
+            pointer-events: auto;
+            z-index: 101;
+            transition: transform 0.1s;
+        }
+
+        .game-item:active { cursor: grabbing; transform: scale(0.95); }
+
+        .game-item.dragging {
+            cursor: grabbing;
+            z-index: 9999 !important;
+            box-shadow: 0 20px 30px rgba(0,0,0,0.25);
+            transform: scale(1.15) rotate(5deg);
+            transition: none;
+        }
+
+        /* 錯誤震動動畫 */
+        .game-item.shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        .admin-panel { background: rgba(248, 250, 252, 0.98); }
+        /* 讓 SweetAlert 動畫正常顯示 */
+        .swal2-popup { animation: popIn 0.3s !important; }
+    </style>
+</head>
+<body class="h-screen w-screen relative overflow-hidden">
+
+    <div id="app" class="h-full w-full relative">
+
+        <div v-if="!isAdmin" class="h-full w-full relative">
+            
+            <div class="absolute top-0 left-0 w-full p-2 flex justify-between items-start z-[200] pointer-events-none">
+                <div class="pointer-events-auto flex gap-2">
+                    <button @click="openAdmin" class="bg-white hover:bg-slate-50 text-slate-500 px-4 py-2 rounded-xl shadow-md border border-slate-200 text-sm font-bold transition">
+                        ⚙️ 設定
+                    </button>
+                    <button @click="restartGame" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl shadow-md text-sm font-bold transition">
+                        🔄 重置
+                    </button>
+                </div>
+                <div class="bg-white px-4 py-2 rounded-xl shadow-lg text-xl font-mono font-bold text-slate-700 border border-slate-200 pointer-events-auto">
+                    ⏱️ {{ formatTime(timer) }}
+                </div>
+            </div>
+
+            <div v-for="(cat, index) in config.categories" 
+                 :key="cat.id"
+                 class="category-zone"
+                 :class="{
+                     'drag-over': dragTarget === cat.id, 
+                     'feedback-correct': feedbackState[cat.id] === 'correct',
+                     'feedback-error': feedbackState[cat.id] === 'error'
+                 }"
+                 :style="getQuadrantStyle(index, config.categories.length)">
+                
+                <div class="category-label">
+                    <span class="emoji">{{ cat.emoji || '📥' }}</span>
+                    <span class="text">{{ cat.name }}</span>
+                </div>
+
+                <div v-for="item in getCompletedItems(cat.id)" 
+                     :key="item.uniqueKey"
+                     class="completed-item"
+                     :style="getCompletedItemStyle(item)">
+                     <span class="text-3xl">{{ item.emoji }}</span>
+                </div>
+            </div>
+
+            <div class="items-container" :style="containerSizeStyle">
+                <div v-for="item in currentItems" 
+                     :key="item.id"
+                     class="game-item"
+                     :style="gameItemSizeStyle"
+                     :class="{ 'dragging': draggedItem && draggedItem.id === item.id, 'shake': item.shaking }"
+                     @mousedown="startDrag($event, item)"
+                     @touchstart="startDrag($event, item)">
+                    <span class="text-5xl pointer-events-none">{{ item.emoji }}</span>
+                    <span class="text-sm font-bold text-gray-600 pointer-events-none mt-1">{{ item.text }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="isAdmin" class="admin-panel absolute inset-0 z-[300] overflow-auto p-4 md:p-8 flex flex-col items-center">
+            <div class="max-w-4xl w-full bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
+                <div class="bg-slate-800 text-white p-5 flex justify-between items-center">
+                    <h2 class="text-xl font-bold flex items-center gap-2">🛠️ 設定管理</h2>
+                    <button @click="closeAdmin" class="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg font-bold shadow transition">
+                        ▶️ 開始遊戲
+                    </button>
+                </div>
+                
+                <div class="p-6 space-y-6">
+                    <div class="flex flex-wrap gap-4 items-center justify-between bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <div>
+                            <span class="text-blue-800 font-bold block">📁 題庫管理</span>
+                            <span class="text-xs text-blue-600">可匯出備份或匯入交換</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button @click="downloadConfig" class="bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition">📤 匯出設定</button>
+                            <button @click="triggerFileInput" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow transition">📥 匯入設定</button>
+                            <input type="file" ref="fileInput" accept=".json" class="hidden" @change="handleFileUpload">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="font-bold text-slate-700 mb-3 border-l-4 border-blue-500 pl-2">分類 (象限)</h3>
+                            <div v-for="(cat, idx) in tempConfig.categories" :key="idx" class="flex gap-2 mb-2">
+                                <input v-model="cat.emoji" class="w-14 border rounded-lg text-center text-xl bg-slate-50" placeholder="圖">
+                                <input v-model="cat.name" class="flex-1 border rounded-lg px-3" placeholder="分類名稱">
+                                <button @click="removeCategory(idx)" class="text-red-400 hover:text-red-600 px-1">✖</button>
+                            </div>
+                            <button @click="addCategory" class="w-full mt-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg py-2 hover:bg-white transition font-bold text-sm">+ 新增分類 (最多4個)</button>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-700 mb-3 border-l-4 border-orange-500 pl-2">物品</h3>
+                            <div class="flex items-center gap-2 mb-3 bg-slate-50 p-2 rounded-lg border">
+                                <span class="text-sm font-bold text-slate-600">本局隨機抽選數量:</span>
+                                <input type="number" v-model.number="tempConfig.maxItems" class="w-20 border rounded px-2 text-center font-bold text-blue-600">
+                            </div>
+                            <div class="max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                <div v-for="(item, idx) in tempConfig.items" :key="idx" class="flex gap-2 mb-2 bg-white p-2 rounded-lg border shadow-sm items-center">
+                                    <input v-model="item.emoji" class="w-10 border rounded text-center text-xl">
+                                    <input v-model="item.text" @input="tryAutoEmoji(item)" class="w-24 border rounded px-2 text-sm">
+                                    <select v-model="item.categoryId" class="flex-1 border rounded text-sm h-8 bg-slate-50">
+                                        <option v-for="cat in tempConfig.categories" :value="cat.id">{{ cat.name }}</option>
+                                    </select>
+                                    <button @click="removeItem(idx)" class="text-red-400 hover:text-red-600 px-2">✖</button>
+                                </div>
+                            </div>
+                            <button @click="addItem" class="mt-3 w-full border-2 border-dashed border-slate-300 text-slate-500 rounded-lg py-2 hover:bg-white transition font-bold text-sm">+ 新增物品</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                const isAdmin = ref(false);
+                const gameStarted = ref(false);
+                const timer = ref(0);
+                const timerInterval = ref(null);
+                const dragTarget = ref(null);
+                const draggedItem = ref(null);
+                const fileInput = ref(null);
+                const windowSize = reactive({ w: window.innerWidth, h: window.innerHeight });
+                const feedbackState = reactive({});
+
+                // 預設題庫
+                const defaultConfig = {
+                    maxItems: 8,
+                    categories: [
+                        { id: 'c1', name: '蔬菜', emoji: '🥬' },
+                        { id: 'c2', name: '水果', emoji: '🍎' },
+                        { id: 'c3', name: '交通', emoji: '🚌' },
+                        { id: 'c4', name: '動物', emoji: '🐶' }
+                    ],
+                    items: [
+                        { id: 'i1', text: '青江菜', emoji: '🥬', categoryId: 'c1' },
+                        { id: 'i2', text: '高麗菜', emoji: '🥬', categoryId: 'c1' },
+                        { id: 'i3', text: '蘋果', emoji: '🍎', categoryId: 'c2' },
+                        { id: 'i4', text: '香蕉', emoji: '🍌', categoryId: 'c2' },
+                        { id: 'i5', text: '公車', emoji: '🚌', categoryId: 'c3' },
+                        { id: 'i6', text: '計程車', emoji: '🚕', categoryId: 'c3' },
+                        { id: 'i7', text: '小狗', emoji: '🐶', categoryId: 'c4' },
+                        { id: 'i8', text: '小貓', emoji: '🐱', categoryId: 'c4' }
+                    ]
+                };
+
+                const config = reactive(JSON.parse(JSON.stringify(defaultConfig)));
+                const tempConfig = reactive(JSON.parse(JSON.stringify(defaultConfig)));
+                const currentItems = ref([]);
+                const completedItems = ref([]);
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+                // TTS 語音
+                function speak(text) {
+                    if ('speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = 'zh-TW'; 
+                        utterance.rate = 0.9;
+                        window.speechSynthesis.speak(utterance);
+                    }
+                }
+
+                // 音效
+                function playSound(type) {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    const osc = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    osc.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    const now = audioCtx.currentTime;
+
+                    if (type === 'correct') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(523.25, now);
+                        osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1);
+                        gainNode.gain.setValueAtTime(0.3, now);
+                        gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+                        osc.start(now); osc.stop(now + 0.3);
+                    } else if (type === 'error') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(150, now);
+                        osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+                        gainNode.gain.setValueAtTime(0.3, now);
+                        gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+                        osc.start(now); osc.stop(now + 0.3);
+                    } else if (type === 'win') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(300, now);
+                        osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+                        osc.frequency.linearRampToValueAtTime(800, now + 0.4);
+                        gainNode.gain.setValueAtTime(0.3, now);
+                        gainNode.gain.linearRampToValueAtTime(0, now + 1.5);
+                        osc.start(now); osc.stop(now + 1.5);
+                    }
+                }
+
+                function triggerFeedback(catId, type) {
+                    feedbackState[catId] = type;
+                    setTimeout(() => { feedbackState[catId] = null; }, 500);
+                }
+
+                function getQuadrantStyle(index, total) {
+                    let style = { width: '50%', height: '50%', position: 'absolute', border: '1px solid #e2e8f0' };
+                    if (total === 4) {
+                        style.top = (Math.floor(index / 2) * 50) + '%';
+                        style.left = ((index % 2) * 50) + '%';
+                    } else if (total === 2) {
+                        style.height = '100%'; style.top = '0'; style.left = (index * 50) + '%';
+                    } else if (total === 1) {
+                        style.width = '100%'; style.height = '100%'; style.top = '0'; style.left = '0';
+                    }
+                    return style;
+                }
+
+                const containerSizeStyle = computed(() => {
+                    const size = Math.min(windowSize.w, windowSize.h) * 0.45;
+                    return { width: `${size}px`, height: `${size}px` };
+                });
+                
+                const gameItemSizeStyle = computed(() => {
+                    const size = Math.min(windowSize.w, windowSize.h) < 600 ? 70 : 90;
+                    return { width: `${size}px`, height: `${size}px` };
+                });
+
+                function getCompletedItemStyle(item) {
+                    const size = Math.min(windowSize.w, windowSize.h) < 600 ? 50 : 60;
+                    return {
+                        width: `${size}px`, height: `${size}px`,
+                        left: `${item.finalX}%`, top: `${item.finalY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 20
+                    };
+                }
+
+                function startGame() {
+                    timer.value = 0; completedItems.value = [];
+                    clearInterval(timerInterval.value);
+                    let pool = [...config.items];
+                    pool.sort(() => Math.random() - 0.5);
+                    const count = Math.min(config.maxItems, pool.length);
+                    currentItems.value = pool.slice(0, count).map(i => ({...i, uniqueKey: Math.random(), shaking: false}));
+                    gameStarted.value = true;
+                    timerInterval.value = setInterval(() => { timer.value++; }, 1000);
+                }
+
+                function checkWin() {
+                    if (currentItems.value.length === 0) {
+                        clearInterval(timerInterval.value);
+                        playSound('win');
+                        confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
+                        setTimeout(() => {
+                            Swal.fire({
+                                title: '🎉 測驗完成！',
+                                html: `<div style="font-size:1.5em; margin-top:10px;">所用時間：<b>${formatTime(timer.value)}</b></div>`,
+                                icon: 'success',
+                                confirmButtonText: '🔄 再來一次',
+                                confirmButtonColor: '#3b82f6',
+                                showCancelButton: true,
+                                cancelButtonText: '關閉',
+                                allowOutsideClick: false
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    restartGame();
+                                }
+                            });
+                        }, 800);
+                    }
+                }
+
+                function getCompletedItems(catId) {
+                    return completedItems.value.filter(i => i.categoryId === catId);
+                }
+
+                let startX, startY;
+                let currentElement = null;
+
+                function startDrag(e, item) {
+                    e.preventDefault();
+                    speak(item.text); // 語音朗讀
+                    draggedItem.value = item;
+                    currentElement = e.currentTarget;
+                    const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                    const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+                    startX = clientX; startY = clientY;
+                    if (e.type.includes('mouse')) {
+                        document.addEventListener('mousemove', onDrag);
+                        document.addEventListener('mouseup', endDrag);
+                    } else {
+                        document.addEventListener('touchmove', onDrag, { passive: false });
+                        document.addEventListener('touchend', endDrag);
+                    }
+                }
+
+                function onDrag(e) {
+                    e.preventDefault();
+                    if (!currentElement) return;
+                    const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                    const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+                    const dx = clientX - startX;
+                    const dy = clientY - startY;
+                    currentElement.style.transform = `translate(${dx}px, ${dy}px) scale(1.15)`; 
+                    checkHover(clientX, clientY);
+                }
+
+                function checkHover(x, y) {
+                    dragTarget.value = null;
+                    const categories = document.querySelectorAll('.category-zone');
+                    categories.forEach((el, idx) => {
+                         const rect = el.getBoundingClientRect();
+                         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                             dragTarget.value = config.categories[idx].id;
+                         }
+                    });
+                }
+
+                function endDrag(e) {
+                    const el = currentElement;
+                    document.removeEventListener('mousemove', onDrag);
+                    document.removeEventListener('mouseup', endDrag);
+                    document.removeEventListener('touchmove', onDrag);
+                    document.removeEventListener('touchend', endDrag);
+
+                    if (!draggedItem.value || !el) return;
+
+                    if (dragTarget.value) {
+                        if (dragTarget.value === draggedItem.value.categoryId) {
+                            playSound('correct');
+                            triggerFeedback(dragTarget.value, 'correct');
+                            
+                            // 計算隨機位置：圍繞中心 (50,50)，避開中間半徑約 25% 的區域
+                            let safe = false;
+                            let finalX, finalY;
+                            let attempt = 0;
+                            while(!safe && attempt < 50) {
+                                finalX = 10 + Math.random() * 80; 
+                                finalY = 10 + Math.random() * 80;
+                                const dist = Math.sqrt(Math.pow(finalX - 50, 2) + Math.pow(finalY - 50, 2));
+                                if (dist > 22) safe = true; // 避開中間
+                                attempt++;
+                            }
+
+                            const idx = currentItems.value.findIndex(i => i.uniqueKey === draggedItem.value.uniqueKey);
+                            if (idx > -1) {
+                                currentItems.value.splice(idx, 1);
+                                completedItems.value.push({ ...draggedItem.value, finalX, finalY });
+                                checkWin();
+                            }
+                        } else {
+                            playSound('error');
+                            triggerFeedback(dragTarget.value, 'error');
+                            draggedItem.value.shaking = true;
+                            setTimeout(() => { if(draggedItem.value) draggedItem.value.shaking = false; }, 500);
+                            el.style.transform = '';
+                        }
+                    } else {
+                        el.style.transform = '';
+                    }
+
+                    dragTarget.value = null;
+                    draggedItem.value = null;
+                    currentElement = null;
+                }
+
+                function downloadConfig() {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(tempConfig));
+                    const d = new Date();
+                    const el = document.createElement('a');
+                    el.setAttribute("href", dataStr);
+                    el.setAttribute("download", `設定_${d.getMonth()+1}${d.getDate()}.json`);
+                    document.body.appendChild(el); el.click(); el.remove();
+                }
+                function triggerFileInput() { fileInput.value.click(); }
+                function handleFileUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const parsed = JSON.parse(e.target.result);
+                            if (parsed.categories && parsed.items) { Object.assign(tempConfig, parsed); Swal.fire('已載入', '', 'success'); }
+                        } catch (err) { Swal.fire('錯誤', '格式不符', 'error'); }
+                    };
+                    reader.readAsText(file); event.target.value = '';
+                }
+                function openAdmin() { isAdmin.value = true; Object.assign(tempConfig, JSON.parse(JSON.stringify(config))); }
+                function closeAdmin() { Object.assign(config, JSON.parse(JSON.stringify(tempConfig))); isAdmin.value = false; restartGame(); }
+                function restartGame() { startGame(); }
+                function addCategory() { if(tempConfig.categories.length>=4) return; const id = 'c' + Date.now(); tempConfig.categories.push({ id, name: '新分類', emoji: '📦' }); }
+                function removeCategory(idx) { tempConfig.categories.splice(idx, 1); }
+                function addItem() { tempConfig.items.push({ id: 'i' + Date.now(), text: '物品', emoji: '❓', categoryId: tempConfig.categories[0]?.id || '' }); }
+                function removeItem(idx) { tempConfig.items.splice(idx, 1); }
+                const emojiMap = { '紅': '🔴', '藍': '🔵', '黃': '🟡', '綠': '🟢', '菜': '🥬', '果': '🍎', '車': '🚗', '狗': '🐶', '貓': '🐱' };
+                function tryAutoEmoji(item) {
+                    const char = item.text.charAt(0); if (emojiMap[char]) item.emoji = emojiMap[char];
+                    else if (emojiMap[item.text.charAt(item.text.length-1)]) item.emoji = emojiMap[item.text.charAt(item.text.length-1)];
+                }
+                function formatTime(s) { return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`; }
+                function handleResize() { windowSize.w = window.innerWidth; windowSize.h = window.innerHeight; }
+
+                onMounted(() => { startGame(); window.addEventListener('resize', handleResize); });
+                onUnmounted(() => window.removeEventListener('resize', handleResize));
+
+                return {
+                    isAdmin, gameStarted, timer, formatTime, config, tempConfig,
+                    currentItems, dragTarget, draggedItem, fileInput, feedbackState,
+                    openAdmin, closeAdmin, restartGame, addCategory, removeCategory, addItem, removeItem, tryAutoEmoji,
+                    downloadConfig, triggerFileInput, handleFileUpload,
+                    startDrag, getQuadrantStyle, getCompletedItems, getCompletedItemStyle,
+                    containerSizeStyle, gameItemSizeStyle
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
+    
+  </body>
+  
+</html>
