@@ -22,6 +22,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getStorage, ref as storageRef, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+        import { getFirestore, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAW30YA99hzb1rgMfcSySzFSKONF_txy74",
@@ -34,11 +35,17 @@
 
         const app = initializeApp(firebaseConfig);
         const storage = getStorage(app);
+        const db = getFirestore(app);
 
         window._firebaseStorage = storage;
         window._firebaseStorageRef = storageRef;
         window._firebaseListAll = listAll;
         window._firebaseGetDownloadURL = getDownloadURL;
+        window._firebaseDb = db;
+        window._firestoreCollection = collection;
+        window._firestoreGetDocs = getDocs;
+        window._firestoreQuery = query;
+        window._firestoreWhere = where;
         window._firebaseReady = true;
         window.dispatchEvent(new Event('firebaseReady'));
     </script>
@@ -387,7 +394,7 @@
                         <div class="flex items-center justify-between mb-3">
                             <div>
                                 <span class="text-amber-800 font-bold block">🎨 主題載入</span>
-                                <span class="text-xs text-amber-600">從 Firebase Storage 資料夾載入完整主題</span>
+                        <span class="text-xs text-amber-600">從 Firestore question_bank 依主題載入題目</span>
                             </div>
                             <button @click="fetchThemes" :disabled="themePicker.loading" class="bg-amber-100 hover:bg-amber-200 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold transition flex items-center gap-1">
                                 <svg v-if="themePicker.loading" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
@@ -398,7 +405,7 @@
                         <div class="flex gap-2 items-center flex-wrap">
                             <select v-model="themePicker.selected" class="flex-1 min-w-[160px] border border-amber-200 rounded-lg px-3 h-10 bg-white text-slate-700 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
                                 <option value="">— 選擇主題 —</option>
-                                <option v-for="t in themePicker.themes" :key="t.fullPath" :value="t.fullPath">{{ t.name }}</option>
+                                <option v-for="t in themePicker.themes" :key="t.value" :value="t.value">{{ t.name }}</option>
                             </select>
                             <button @click="loadTheme" :disabled="!themePicker.selected || themePicker.loadingTheme" class="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-1">
                                 <svg v-if="themePicker.loadingTheme" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
@@ -408,7 +415,7 @@
                         </div>
                         <p v-if="themePicker.error" class="mt-2 text-xs text-red-500">⚠️ {{ themePicker.error }}</p>
                         <p v-if="themePicker.success" class="mt-2 text-xs text-green-600 font-bold">✅ {{ themePicker.success }}</p>
-                        <p class="mt-2 text-xs text-amber-500">💡 主題資料夾需包含 <code class="bg-amber-100 px-1 rounded">config.json</code> 設定檔</p>
+                        <p class="mt-2 text-xs text-amber-500">💡 自動從 Firestore 讀取 <code class="bg-amber-100 px-1 rounded">category</code> 建立象限、<code class="bg-amber-100 px-1 rounded">name</code> 為物品名、<code class="bg-amber-100 px-1 rounded">original</code> 為圖片</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -882,13 +889,18 @@
                     themePicker.success = null;
                     await waitFirebase();
                     try {
-                        const storage = window._firebaseStorage;
-                        const storageRef = window._firebaseStorageRef;
-                        const listAll = window._firebaseListAll;
-                        const root = storageRef(storage, '/');
-                        const result = await listAll(root);
-                        themePicker.themes = result.prefixes.map(p => ({ name: p.name, fullPath: p.fullPath }));
-                        if (themePicker.themes.length === 0) themePicker.error = '找不到任何主題資料夾';
+                        const db = window._firebaseDb;
+                        const col = window._firestoreCollection;
+                        const getDocs = window._firestoreGetDocs;
+
+                        const snapshot = await getDocs(col(db, 'question_bank'));
+                        const themeSet = new Set();
+                        snapshot.forEach(doc => {
+                            const t = doc.data().theme;
+                            if (t) themeSet.add(t);
+                        });
+                        themePicker.themes = [...themeSet].sort().map(t => ({ name: t, value: t }));
+                        if (themePicker.themes.length === 0) themePicker.error = '找不到任何主題';
                     } catch (err) {
                         themePicker.error = '無法讀取主題列表：' + (err.message || err.code || '未知錯誤');
                     } finally {
@@ -903,21 +915,59 @@
                     themePicker.success = null;
                     await waitFirebase();
                     try {
-                        const storage = window._firebaseStorage;
-                        const storageRef = window._firebaseStorageRef;
-                        const getDownloadURL = window._firebaseGetDownloadURL;
+                        const db = window._firebaseDb;
+                        const col = window._firestoreCollection;
+                        const getDocs = window._firestoreGetDocs;
+                        const q = window._firestoreQuery;
+                        const where = window._firestoreWhere;
 
-                        // 嘗試讀取 config.json
-                        const configRef = storageRef(storage, `${themePicker.selected}/config.json`);
-                        const configUrl = await getDownloadURL(configRef);
-                        const resp = await fetch(configUrl);
-                        if (!resp.ok) throw new Error('無法下載 config.json');
-                        const parsed = await resp.json();
-                        if (!parsed.categories || !parsed.items) throw new Error('config.json 格式不符');
-                        Object.assign(tempConfig, parsed);
-                        themePicker.success = `已載入主題「${themePicker.themes.find(t=>t.fullPath===themePicker.selected)?.name}」`;
+                        // 查詢此主題的所有題目
+                        const snapshot = await getDocs(
+                            q(col(db, 'question_bank'), where('theme', '==', themePicker.selected))
+                        );
+
+                        const docs = [];
+                        snapshot.forEach(doc => docs.push(doc.data()));
+
+                        if (docs.length === 0) throw new Error('此主題沒有任何題目');
+
+                        // 收集所有不重複的 category，建立分類
+                        const categoryNames = [...new Set(docs.map(d => d.category).filter(Boolean))];
+                        if (categoryNames.length === 0) throw new Error('題目沒有 category 欄位');
+                        if (categoryNames.length > 4) categoryNames.length = 4; // 最多4象限
+
+                        const categoryEmojis = ['📦','🗂️','📋','🏷️'];
+                        const newCategories = categoryNames.map((name, i) => ({
+                            id: 'c_' + i,
+                            name: name,
+                            emoji: categoryEmojis[i],
+                            image: null
+                        }));
+
+                        // 建立物品清單：name + original(base64) + category 對應
+                        const catNameToId = {};
+                        newCategories.forEach(c => { catNameToId[c.name] = c.id; });
+
+                        const newItems = docs
+                            .filter(d => d.category && catNameToId[d.category])
+                            .map((d, i) => ({
+                                id: 'i_' + i,
+                                text: d.name || d.content || '物品',
+                                emoji: '🖼️',
+                                categoryId: catNameToId[d.category],
+                                image: d.original || null
+                            }));
+
+                        if (newItems.length === 0) throw new Error('沒有可用的物品');
+
+                        // 套用到 tempConfig
+                        tempConfig.categories = newCategories;
+                        tempConfig.items = newItems;
+                        tempConfig.maxItems = Math.min(newItems.length, 8);
+
+                        themePicker.success = `已載入「${themePicker.selected}」— ${newCategories.length} 個分類，${newItems.length} 個物品`;
                     } catch (err) {
-                        themePicker.error = '載入失敗：' + (err.message || err.code || '請確認資料夾內有 config.json');
+                        themePicker.error = '載入失敗：' + (err.message || err.code || '未知錯誤');
                     } finally {
                         themePicker.loadingTheme = false;
                     }
