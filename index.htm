@@ -1,8 +1,9 @@
+<!DOCTYPE html>
 <html lang="en">
 
   <head>
     <meta charset="UTF-8">
-    <title>Untitled</title>
+    <title>分類_4象限_emoji</title>
     
 
   </head>
@@ -13,11 +14,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>分類配對-語音與重玩版</title>
+    <title>分類配對-圖片自訂與範例下載版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getStorage, ref as storageRef, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAW30YA99hzb1rgMfcSySzFSKONF_txy74",
+            authDomain: "picpic-89881.firebaseapp.com",
+            projectId: "picpic-89881",
+            storageBucket: "picpic-89881.firebasestorage.app",
+            messagingSenderId: "555976169158",
+            appId: "1:555976169158:web:f5e05ebc56d95f12b9e9c7"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+
+        window._firebaseStorage = storage;
+        window._firebaseStorageRef = storageRef;
+        window._firebaseListAll = listAll;
+        window._firebaseGetDownloadURL = getDownloadURL;
+        window._firebaseReady = true;
+        window.dispatchEvent(new Event('firebaseReady'));
+    </script>
     
     <style>
         body {
@@ -70,24 +94,41 @@
             transform: translate(-50%, -50%);
             pointer-events: none;
             text-align: center;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 50%;
-            box-shadow: 0 0 15px rgba(0,0,0,0.05);
-            width: 140px;
-            height: 140px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 150px;
+            height: 150px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            overflow: hidden;
         }
 
         .category-label .emoji { font-size: 3.5rem; line-height: 1.2; }
         .category-label .text { 
-            font-size: 1.4rem; 
+            font-size: 1.2rem; 
             font-weight: 800; 
             color: #334155; 
             margin-top: 5px;
+            z-index: 2;
+            text-shadow: 0 1px 0 #fff;
+        }
+
+        /* 自訂圖片樣式 */
+        .custom-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+        
+        .category-img-container {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 5px;
         }
 
         /* --- 已完成物品 --- */
@@ -101,8 +142,10 @@
             justify-content: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.15);
             z-index: 20;
+            overflow: hidden;
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             animation: popIn 0.4s;
+            padding: 4px;
         }
 
         @keyframes popIn {
@@ -142,6 +185,8 @@
             pointer-events: auto;
             z-index: 101;
             transition: transform 0.1s;
+            overflow: hidden;
+            padding: 5px;
         }
 
         .game-item:active { cursor: grabbing; transform: scale(0.95); }
@@ -154,9 +199,17 @@
             transition: none;
         }
 
-        /* 錯誤震動動畫 */
         .game-item.shake {
             animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        .thumb-preview {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background: #eee;
         }
 
         @keyframes shake {
@@ -167,8 +220,69 @@
         }
 
         .admin-panel { background: rgba(248, 250, 252, 0.98); }
-        /* 讓 SweetAlert 動畫正常顯示 */
-        .swal2-popup { animation: popIn 0.3s !important; }
+        .swal2-container { z-index: 10000 !important; }
+
+        /* Firebase 圖片選擇器 */
+        .fb-picker-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fb-picker-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            width: 90vw;
+            max-width: 560px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .fb-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            overflow-y: auto;
+            flex: 1;
+            padding: 4px;
+            margin-top: 12px;
+        }
+        .fb-picker-item {
+            border: 3px solid transparent;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            aspect-ratio: 1;
+            transition: border-color 0.2s, transform 0.1s;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fb-picker-item:hover { border-color: #3b82f6; transform: scale(1.05); }
+        .fb-picker-item.selected { border-color: #22c55e; box-shadow: 0 0 0 2px #86efac; }
+        .fb-picker-item img { width: 100%; height: 100%; object-fit: cover; }
+        .fb-folder-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.15s;
+            color: #334155;
+        }
+        .fb-folder-btn:hover { background: #e2e8f0; }
+        .fb-folder-btn.active { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
     </style>
 </head>
 <body class="h-screen w-screen relative overflow-hidden">
@@ -202,7 +316,10 @@
                  :style="getQuadrantStyle(index, config.categories.length)">
                 
                 <div class="category-label">
-                    <span class="emoji">{{ cat.emoji || '📥' }}</span>
+                    <div v-if="cat.image" class="category-img-container">
+                        <img :src="cat.image" class="custom-img">
+                    </div>
+                    <span v-else class="emoji">{{ cat.emoji || '📥' }}</span>
                     <span class="text">{{ cat.name }}</span>
                 </div>
 
@@ -210,7 +327,8 @@
                      :key="item.uniqueKey"
                      class="completed-item"
                      :style="getCompletedItemStyle(item)">
-                     <span class="text-3xl">{{ item.emoji }}</span>
+                     <img v-if="item.image" :src="item.image" class="custom-img">
+                     <span v-else class="text-3xl">{{ item.emoji }}</span>
                 </div>
             </div>
 
@@ -222,14 +340,18 @@
                      :class="{ 'dragging': draggedItem && draggedItem.id === item.id, 'shake': item.shaking }"
                      @mousedown="startDrag($event, item)"
                      @touchstart="startDrag($event, item)">
-                    <span class="text-5xl pointer-events-none">{{ item.emoji }}</span>
+                    
+                    <div v-if="item.image" style="width: 100%; height: 70%;" class="flex items-center justify-center">
+                        <img :src="item.image" class="custom-img">
+                    </div>
+                    <span v-else class="text-5xl pointer-events-none">{{ item.emoji }}</span>
                     <span class="text-sm font-bold text-gray-600 pointer-events-none mt-1">{{ item.text }}</span>
                 </div>
             </div>
         </div>
 
         <div v-if="isAdmin" class="admin-panel absolute inset-0 z-[300] overflow-auto p-4 md:p-8 flex flex-col items-center">
-            <div class="max-w-4xl w-full bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div class="max-w-5xl w-full bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden">
                 <div class="bg-slate-800 text-white p-5 flex justify-between items-center">
                     <h2 class="text-xl font-bold flex items-center gap-2">🛠️ 設定管理</h2>
                     <button @click="closeAdmin" class="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg font-bold shadow transition">
@@ -241,36 +363,84 @@
                     <div class="flex flex-wrap gap-4 items-center justify-between bg-blue-50 p-4 rounded-xl border border-blue-100">
                         <div>
                             <span class="text-blue-800 font-bold block">📁 題庫管理</span>
-                            <span class="text-xs text-blue-600">可匯出備份或匯入交換</span>
+                            <span class="text-xs text-blue-600">匯出檔案包含圖片</span>
                         </div>
                         <div class="flex gap-2">
-                            <button @click="downloadConfig" class="bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition">📤 匯出設定</button>
-                            <button @click="triggerFileInput" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow transition">📥 匯入設定</button>
+                             <button @click="showExampleModal" class="bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition">
+                                📄 下載範例
+                            </button>
+                          <button @click="downloadConfig" class="bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition">
+                                📤 匯出設定
+                            </button>
+
+                           
+
+                            <button @click="triggerFileInput" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow transition">
+                                📥 匯入設定
+                            </button>
                             <input type="file" ref="fileInput" accept=".json" class="hidden" @change="handleFileUpload">
                         </div>
+                    </div>
+
+                    <!-- 主題載入區塊 -->
+                    <div class="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <span class="text-amber-800 font-bold block">🎨 主題載入</span>
+                                <span class="text-xs text-amber-600">從 Firebase Storage 資料夾載入完整主題</span>
+                            </div>
+                            <button @click="fetchThemes" :disabled="themePicker.loading" class="bg-amber-100 hover:bg-amber-200 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold transition flex items-center gap-1">
+                                <svg v-if="themePicker.loading" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                <span v-else>🔄</span>
+                                重新整理
+                            </button>
+                        </div>
+                        <div class="flex gap-2 items-center flex-wrap">
+                            <select v-model="themePicker.selected" class="flex-1 min-w-[160px] border border-amber-200 rounded-lg px-3 h-10 bg-white text-slate-700 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
+                                <option value="">— 選擇主題 —</option>
+                                <option v-for="t in themePicker.themes" :key="t.fullPath" :value="t.fullPath">{{ t.name }}</option>
+                            </select>
+                            <button @click="loadTheme" :disabled="!themePicker.selected || themePicker.loadingTheme" class="bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-1">
+                                <svg v-if="themePicker.loadingTheme" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                <span v-else>📥</span>
+                                載入主題
+                            </button>
+                        </div>
+                        <p v-if="themePicker.error" class="mt-2 text-xs text-red-500">⚠️ {{ themePicker.error }}</p>
+                        <p v-if="themePicker.success" class="mt-2 text-xs text-green-600 font-bold">✅ {{ themePicker.success }}</p>
+                        <p class="mt-2 text-xs text-amber-500">💡 主題資料夾需包含 <code class="bg-amber-100 px-1 rounded">config.json</code> 設定檔</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
                             <h3 class="font-bold text-slate-700 mb-3 border-l-4 border-blue-500 pl-2">分類 (象限)</h3>
-                            <div v-for="(cat, idx) in tempConfig.categories" :key="idx" class="flex gap-2 mb-2">
-                                <input v-model="cat.emoji" class="w-14 border rounded-lg text-center text-xl bg-slate-50" placeholder="圖">
-                                <input v-model="cat.name" class="flex-1 border rounded-lg px-3" placeholder="分類名稱">
+                            <div v-for="(cat, idx) in tempConfig.categories" :key="idx" class="flex gap-2 mb-3 items-center bg-gray-50 p-2 rounded">
+                                <div class="relative group cursor-pointer" @click="triggerImgUpload('cat', idx)">
+                                    <img v-if="cat.image" :src="cat.image" class="thumb-preview">
+                                    <div v-else class="thumb-preview flex items-center justify-center text-gray-400 bg-white">📷</div>
+                                </div>
+                                <input v-model="cat.emoji" class="w-12 border rounded-lg text-center text-xl bg-white h-10" placeholder="圖">
+                                <input v-model="cat.name" class="flex-1 border rounded-lg px-3 h-10" placeholder="分類名稱">
                                 <button @click="removeCategory(idx)" class="text-red-400 hover:text-red-600 px-1">✖</button>
                             </div>
                             <button @click="addCategory" class="w-full mt-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg py-2 hover:bg-white transition font-bold text-sm">+ 新增分類 (最多4個)</button>
                         </div>
+                        
                         <div>
                             <h3 class="font-bold text-slate-700 mb-3 border-l-4 border-orange-500 pl-2">物品</h3>
                             <div class="flex items-center gap-2 mb-3 bg-slate-50 p-2 rounded-lg border">
-                                <span class="text-sm font-bold text-slate-600">本局隨機抽選數量:</span>
+                                <span class="text-sm font-bold text-slate-600">隨機抽選數量:</span>
                                 <input type="number" v-model.number="tempConfig.maxItems" class="w-20 border rounded px-2 text-center font-bold text-blue-600">
                             </div>
-                            <div class="max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                            <div class="max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                                 <div v-for="(item, idx) in tempConfig.items" :key="idx" class="flex gap-2 mb-2 bg-white p-2 rounded-lg border shadow-sm items-center">
-                                    <input v-model="item.emoji" class="w-10 border rounded text-center text-xl">
-                                    <input v-model="item.text" @input="tryAutoEmoji(item)" class="w-24 border rounded px-2 text-sm">
-                                    <select v-model="item.categoryId" class="flex-1 border rounded text-sm h-8 bg-slate-50">
+                                    <div class="relative group cursor-pointer" @click="triggerImgUpload('item', idx)">
+                                        <img v-if="item.image" :src="item.image" class="thumb-preview">
+                                        <div v-else class="thumb-preview flex items-center justify-center text-gray-400 bg-gray-100">📷</div>
+                                    </div>
+                                    <input v-model="item.emoji" class="w-10 border rounded text-center text-xl h-10">
+                                    <input v-model="item.text" @input="tryAutoEmoji(item)" class="w-20 border rounded px-2 text-sm h-10">
+                                    <select v-model="item.categoryId" class="flex-1 border rounded text-sm h-10 bg-slate-50">
                                         <option v-for="cat in tempConfig.categories" :value="cat.id">{{ cat.name }}</option>
                                     </select>
                                     <button @click="removeItem(idx)" class="text-red-400 hover:text-red-600 px-2">✖</button>
@@ -280,44 +450,125 @@
                         </div>
                     </div>
                 </div>
+                
+        <input type="file" ref="imgInput" accept="image/*" class="hidden" @change="handleImgUpload">
+            </div>
+        </div>
+
+        <!-- Firebase 圖片選擇器 Modal -->
+        <div v-if="fbPicker.visible" class="fb-picker-overlay" @click.self="fbPicker.visible=false">
+            <div class="fb-picker-modal">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold text-slate-800 text-lg">📂 選擇圖片</h3>
+                    <button @click="fbPicker.visible=false" class="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+                </div>
+
+                <!-- 路徑導覽 -->
+                <div class="flex flex-wrap gap-2 items-center text-sm">
+                    <button class="fb-folder-btn" @click="fbNavigate('')">🏠 根目錄</button>
+                    <template v-for="(seg, i) in fbPicker.pathSegments" :key="i">
+                        <span class="text-slate-400">/</span>
+                        <button class="fb-folder-btn" :class="{active: i===fbPicker.pathSegments.length-1}" @click="fbNavigate(fbPicker.pathSegments.slice(0,i+1).join('/'))">{{ seg }}</button>
+                    </template>
+                </div>
+
+                <!-- 載入中 -->
+                <div v-if="fbPicker.loading" class="flex-1 flex items-center justify-center py-10 text-slate-400">
+                    <svg class="animate-spin h-8 w-8 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                    載入中...
+                </div>
+
+                <!-- 錯誤 -->
+                <div v-else-if="fbPicker.error" class="flex-1 flex items-center justify-center py-8 text-red-500 text-sm">⚠️ {{ fbPicker.error }}</div>
+
+                <!-- 內容 -->
+                <div v-else class="fb-picker-grid">
+                    <!-- 子資料夾 -->
+                    <div v-for="folder in fbPicker.folders" :key="folder.fullPath"
+                         class="fb-picker-item flex-col gap-1"
+                         @click="fbNavigate(folder.fullPath)">
+                        <span class="text-3xl">📁</span>
+                        <span class="text-xs text-center text-slate-600 px-1 break-all leading-tight">{{ folder.name }}</span>
+                    </div>
+                    <!-- 圖片 -->
+                    <div v-for="img in fbPicker.images" :key="img.fullPath"
+                         class="fb-picker-item"
+                         :class="{selected: fbPicker.selected===img.url}"
+                         @click="fbSelectImage(img)">
+                        <img :src="img.url" :alt="img.name" loading="lazy">
+                    </div>
+                    <!-- 空 -->
+                    <div v-if="fbPicker.folders.length===0 && fbPicker.images.length===0" class="col-span-4 text-center text-slate-400 py-8 text-sm">此資料夾沒有圖片</div>
+                </div>
+
+                <!-- 底部按鈕 -->
+                <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-100">
+                    <button @click="fbClearImage" class="text-red-400 hover:text-red-600 text-sm font-bold px-3 py-1 rounded">🗑️ 清除圖片</button>
+                    <button @click="fbConfirm" :disabled="!fbPicker.selected" class="bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white px-5 py-2 rounded-lg font-bold text-sm transition">✅ 確認選擇</button>
+                </div>
             </div>
         </div>
 
     </div>
 
-    <script>
+    <script defer>
         const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
 
         createApp({
             setup() {
                 const isAdmin = ref(false);
                 const gameStarted = ref(false);
+                const gameFinished = ref(false);
                 const timer = ref(0);
                 const timerInterval = ref(null);
                 const dragTarget = ref(null);
                 const draggedItem = ref(null);
                 const fileInput = ref(null);
+                const imgInput = ref(null);
                 const windowSize = reactive({ w: window.innerWidth, h: window.innerHeight });
                 const feedbackState = reactive({});
+                const uploadTarget = reactive({ type: '', index: -1 });
 
-                // 預設題庫
+                // Firebase 圖片選擇器狀態
+                const fbPicker = reactive({
+                    visible: false,
+                    loading: false,
+                    error: null,
+                    currentPath: '',
+                    pathSegments: [],
+                    folders: [],
+                    images: [],
+                    selected: null,
+                    selectedUrl: null,
+                });
+
+                // 主題選擇器狀態
+                const themePicker = reactive({
+                    themes: [],
+                    selected: '',
+                    loading: false,
+                    loadingTheme: false,
+                    error: null,
+                    success: null,
+                });
+
                 const defaultConfig = {
                     maxItems: 8,
                     categories: [
-                        { id: 'c1', name: '蔬菜', emoji: '🥬' },
-                        { id: 'c2', name: '水果', emoji: '🍎' },
-                        { id: 'c3', name: '交通', emoji: '🚌' },
-                        { id: 'c4', name: '動物', emoji: '🐶' }
+                        { id: 'c1', name: '蔬菜', emoji: '🥬', image: null },
+                        { id: 'c2', name: '水果', emoji: '🍎', image: null },
+                        { id: 'c3', name: '交通', emoji: '🚌', image: null },
+                        { id: 'c4', name: '動物', emoji: '🐶', image: null }
                     ],
                     items: [
-                        { id: 'i1', text: '青江菜', emoji: '🥬', categoryId: 'c1' },
-                        { id: 'i2', text: '高麗菜', emoji: '🥬', categoryId: 'c1' },
-                        { id: 'i3', text: '蘋果', emoji: '🍎', categoryId: 'c2' },
-                        { id: 'i4', text: '香蕉', emoji: '🍌', categoryId: 'c2' },
-                        { id: 'i5', text: '公車', emoji: '🚌', categoryId: 'c3' },
-                        { id: 'i6', text: '計程車', emoji: '🚕', categoryId: 'c3' },
-                        { id: 'i7', text: '小狗', emoji: '🐶', categoryId: 'c4' },
-                        { id: 'i8', text: '小貓', emoji: '🐱', categoryId: 'c4' }
+                        { id: 'i1', text: '青江菜', emoji: '🥬', categoryId: 'c1', image: null },
+                        { id: 'i2', text: '高麗菜', emoji: '🥬', categoryId: 'c1', image: null },
+                        { id: 'i3', text: '蘋果', emoji: '🍎', categoryId: 'c2', image: null },
+                        { id: 'i4', text: '香蕉', emoji: '🍌', categoryId: 'c2', image: null },
+                        { id: 'i5', text: '公車', emoji: '🚌', categoryId: 'c3', image: null },
+                        { id: 'i6', text: '計程車', emoji: '🚕', categoryId: 'c3', image: null },
+                        { id: 'i7', text: '小狗', emoji: '🐶', categoryId: 'c4', image: null },
+                        { id: 'i8', text: '小貓', emoji: '🐱', categoryId: 'c4', image: null }
                     ]
                 };
 
@@ -327,7 +578,6 @@
                 const completedItems = ref([]);
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-                // TTS 語音
                 function speak(text) {
                     if ('speechSynthesis' in window) {
                         window.speechSynthesis.cancel();
@@ -338,7 +588,6 @@
                     }
                 }
 
-                // 音效
                 function playSound(type) {
                     if (audioCtx.state === 'suspended') audioCtx.resume();
                     const osc = audioCtx.createOscillator();
@@ -396,7 +645,7 @@
                 });
                 
                 const gameItemSizeStyle = computed(() => {
-                    const size = Math.min(windowSize.w, windowSize.h) < 600 ? 70 : 90;
+                    const size = Math.min(windowSize.w, windowSize.h) < 600 ? 80 : 100;
                     return { width: `${size}px`, height: `${size}px` };
                 });
 
@@ -411,7 +660,9 @@
                 }
 
                 function startGame() {
-                    timer.value = 0; completedItems.value = [];
+                    timer.value = 0; 
+                    completedItems.value = [];
+                    gameFinished.value = false;
                     clearInterval(timerInterval.value);
                     let pool = [...config.items];
                     pool.sort(() => Math.random() - 0.5);
@@ -422,7 +673,8 @@
                 }
 
                 function checkWin() {
-                    if (currentItems.value.length === 0) {
+                    if (currentItems.value.length === 0 && !gameFinished.value) {
+                        gameFinished.value = true;
                         clearInterval(timerInterval.value);
                         playSound('win');
                         confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 } });
@@ -431,11 +683,13 @@
                                 title: '🎉 測驗完成！',
                                 html: `<div style="font-size:1.5em; margin-top:10px;">所用時間：<b>${formatTime(timer.value)}</b></div>`,
                                 icon: 'success',
-                                confirmButtonText: '🔄 再來一次',
-                                confirmButtonColor: '#3b82f6',
                                 showCancelButton: true,
-                                cancelButtonText: '關閉',
-                                allowOutsideClick: false
+                                confirmButtonText: '🔄 再來一次',
+                                cancelButtonText: '關閉視窗',
+                                confirmButtonColor: '#3b82f6',
+                                cancelButtonColor: '#64748b',
+                                allowOutsideClick: false,
+                                heightAuto: false
                             }).then((result) => {
                                 if (result.isConfirmed) {
                                     restartGame();
@@ -454,7 +708,8 @@
 
                 function startDrag(e, item) {
                     e.preventDefault();
-                    speak(item.text); // 語音朗讀
+                    if(gameFinished.value) return;
+                    speak(item.text); 
                     draggedItem.value = item;
                     currentElement = e.currentTarget;
                     const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
@@ -497,15 +752,11 @@
                     document.removeEventListener('mouseup', endDrag);
                     document.removeEventListener('touchmove', onDrag);
                     document.removeEventListener('touchend', endDrag);
-
                     if (!draggedItem.value || !el) return;
-
                     if (dragTarget.value) {
                         if (dragTarget.value === draggedItem.value.categoryId) {
                             playSound('correct');
                             triggerFeedback(dragTarget.value, 'correct');
-                            
-                            // 計算隨機位置：圍繞中心 (50,50)，避開中間半徑約 25% 的區域
                             let safe = false;
                             let finalX, finalY;
                             let attempt = 0;
@@ -513,10 +764,9 @@
                                 finalX = 10 + Math.random() * 80; 
                                 finalY = 10 + Math.random() * 80;
                                 const dist = Math.sqrt(Math.pow(finalX - 50, 2) + Math.pow(finalY - 50, 2));
-                                if (dist > 22) safe = true; // 避開中間
+                                if (dist > 22) safe = true; 
                                 attempt++;
                             }
-
                             const idx = currentItems.value.findIndex(i => i.uniqueKey === draggedItem.value.uniqueKey);
                             if (idx > -1) {
                                 currentItems.value.splice(idx, 1);
@@ -533,10 +783,165 @@
                     } else {
                         el.style.transform = '';
                     }
-
                     dragTarget.value = null;
                     draggedItem.value = null;
                     currentElement = null;
+                }
+
+                function triggerImgUpload(type, index) {
+                    uploadTarget.type = type;
+                    uploadTarget.index = index;
+                    fbPicker.selected = null;
+                    fbPicker.selectedUrl = null;
+                    // 預填目前已設定的圖片
+                    const current = type === 'cat' ? tempConfig.categories[index].image : tempConfig.items[index].image;
+                    if (current && current.startsWith('http')) fbPicker.selected = current;
+                    fbPicker.visible = true;
+                    fbNavigate('');
+                }
+
+                async function fbNavigate(path) {
+                    fbPicker.loading = true;
+                    fbPicker.error = null;
+                    fbPicker.folders = [];
+                    fbPicker.images = [];
+                    fbPicker.currentPath = path;
+                    fbPicker.pathSegments = path ? path.split('/') : [];
+
+                    // 等待 Firebase 初始化
+                    if (!window._firebaseReady) {
+                        await new Promise(resolve => window.addEventListener('firebaseReady', resolve, { once: true }));
+                    }
+
+                    try {
+                        const storage = window._firebaseStorage;
+                        const storageRef = window._firebaseStorageRef;
+                        const listAll = window._firebaseListAll;
+                        const getDownloadURL = window._firebaseGetDownloadURL;
+
+                        const folderRef = storageRef(storage, path || '/');
+                        const result = await listAll(folderRef);
+
+                        fbPicker.folders = result.prefixes.map(p => ({ name: p.name, fullPath: p.fullPath }));
+
+                        const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i;
+                        const imageItems = result.items.filter(item => imageExtensions.test(item.name));
+                        const urls = await Promise.all(imageItems.map(item =>
+                            getDownloadURL(item).then(url => ({ name: item.name, fullPath: item.fullPath, url }))
+                        ));
+                        fbPicker.images = urls;
+                    } catch (err) {
+                        fbPicker.error = '無法載入圖片：' + (err.message || err.code || '未知錯誤');
+                    } finally {
+                        fbPicker.loading = false;
+                    }
+                }
+
+                function fbSelectImage(img) {
+                    fbPicker.selected = img.url;
+                }
+
+                function fbConfirm() {
+                    if (!fbPicker.selected) return;
+                    if (uploadTarget.type === 'cat') tempConfig.categories[uploadTarget.index].image = fbPicker.selected;
+                    else if (uploadTarget.type === 'item') tempConfig.items[uploadTarget.index].image = fbPicker.selected;
+                    fbPicker.visible = false;
+                }
+
+                function fbClearImage() {
+                    if (uploadTarget.type === 'cat') tempConfig.categories[uploadTarget.index].image = null;
+                    else if (uploadTarget.type === 'item') tempConfig.items[uploadTarget.index].image = null;
+                    fbPicker.visible = false;
+                }
+
+                function handleImgUpload(event) {
+                    // 保留本地上傳備用（不再使用，但保留以防萬一）
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    if (file.size > 1024 * 1024) { alert('圖片太大，請使用 1MB 以下的圖片'); return; }
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const result = e.target.result;
+                        if (uploadTarget.type === 'cat') tempConfig.categories[uploadTarget.index].image = result;
+                        else if (uploadTarget.type === 'item') tempConfig.items[uploadTarget.index].image = result;
+                    };
+                    reader.readAsDataURL(file);
+                    event.target.value = '';
+                }
+
+                // 主題載入函式
+                async function waitFirebase() {
+                    if (!window._firebaseReady) {
+                        await new Promise(resolve => window.addEventListener('firebaseReady', resolve, { once: true }));
+                    }
+                }
+
+                async function fetchThemes() {
+                    themePicker.loading = true;
+                    themePicker.error = null;
+                    themePicker.success = null;
+                    await waitFirebase();
+                    try {
+                        const storage = window._firebaseStorage;
+                        const storageRef = window._firebaseStorageRef;
+                        const listAll = window._firebaseListAll;
+                        const root = storageRef(storage, '/');
+                        const result = await listAll(root);
+                        themePicker.themes = result.prefixes.map(p => ({ name: p.name, fullPath: p.fullPath }));
+                        if (themePicker.themes.length === 0) themePicker.error = '找不到任何主題資料夾';
+                    } catch (err) {
+                        themePicker.error = '無法讀取主題列表：' + (err.message || err.code || '未知錯誤');
+                    } finally {
+                        themePicker.loading = false;
+                    }
+                }
+
+                async function loadTheme() {
+                    if (!themePicker.selected) return;
+                    themePicker.loadingTheme = true;
+                    themePicker.error = null;
+                    themePicker.success = null;
+                    await waitFirebase();
+                    try {
+                        const storage = window._firebaseStorage;
+                        const storageRef = window._firebaseStorageRef;
+                        const getDownloadURL = window._firebaseGetDownloadURL;
+
+                        // 嘗試讀取 config.json
+                        const configRef = storageRef(storage, `${themePicker.selected}/config.json`);
+                        const configUrl = await getDownloadURL(configRef);
+                        const resp = await fetch(configUrl);
+                        if (!resp.ok) throw new Error('無法下載 config.json');
+                        const parsed = await resp.json();
+                        if (!parsed.categories || !parsed.items) throw new Error('config.json 格式不符');
+                        Object.assign(tempConfig, parsed);
+                        themePicker.success = `已載入主題「${themePicker.themes.find(t=>t.fullPath===themePicker.selected)?.name}」`;
+                    } catch (err) {
+                        themePicker.error = '載入失敗：' + (err.message || err.code || '請確認資料夾內有 config.json');
+                    } finally {
+                        themePicker.loadingTheme = false;
+                    }
+                }
+
+                // 下載範例視窗函式
+                function showExampleModal() {
+                    Swal.fire({
+                        title: '下載範例',
+                        html: `
+                            <div class="py-4">
+                                <p class="mb-4 text-gray-600">請點擊下方連結取得範例檔：</p>
+                                <a href="https://drive.google.com/drive/folders/16kz0puJNtiM6Vr0V8YXP0ENf8sSUkxEa?usp=sharing" target="_blank" class="inline-block bg-purple-100 text-purple-700 px-4 py-2 rounded-lg font-bold hover:bg-purple-200 transition border border-purple-300">
+                                    🔗 下載範例
+                                </a>
+                                <a href="https://timttf.wordpress.com/" target="_blank" class="inline-block bg-purple-100 text-purple-700 px-4 py-2 rounded-lg font-bold hover:bg-purple-200 transition border border-purple-300">
+                                    🔗 備用下載範例
+                                </a>
+                            </div>
+                        `,
+                        icon: 'info',
+                        confirmButtonText: '關閉',
+                        confirmButtonColor: '#64748b'
+                    });
                 }
 
                 function downloadConfig() {
@@ -560,12 +965,12 @@
                     };
                     reader.readAsText(file); event.target.value = '';
                 }
-                function openAdmin() { isAdmin.value = true; Object.assign(tempConfig, JSON.parse(JSON.stringify(config))); }
+                function openAdmin() { isAdmin.value = true; Object.assign(tempConfig, JSON.parse(JSON.stringify(config))); fetchThemes(); }
                 function closeAdmin() { Object.assign(config, JSON.parse(JSON.stringify(tempConfig))); isAdmin.value = false; restartGame(); }
                 function restartGame() { startGame(); }
-                function addCategory() { if(tempConfig.categories.length>=4) return; const id = 'c' + Date.now(); tempConfig.categories.push({ id, name: '新分類', emoji: '📦' }); }
+                function addCategory() { if(tempConfig.categories.length>=4) return; const id = 'c' + Date.now(); tempConfig.categories.push({ id, name: '新分類', emoji: '📦', image: null }); }
                 function removeCategory(idx) { tempConfig.categories.splice(idx, 1); }
-                function addItem() { tempConfig.items.push({ id: 'i' + Date.now(), text: '物品', emoji: '❓', categoryId: tempConfig.categories[0]?.id || '' }); }
+                function addItem() { tempConfig.items.push({ id: 'i' + Date.now(), text: '物品', emoji: '❓', categoryId: tempConfig.categories[0]?.id || '', image: null }); }
                 function removeItem(idx) { tempConfig.items.splice(idx, 1); }
                 const emojiMap = { '紅': '🔴', '藍': '🔵', '黃': '🟡', '綠': '🟢', '菜': '🥬', '果': '🍎', '車': '🚗', '狗': '🐶', '貓': '🐱' };
                 function tryAutoEmoji(item) {
@@ -580,11 +985,14 @@
 
                 return {
                     isAdmin, gameStarted, timer, formatTime, config, tempConfig,
-                    currentItems, dragTarget, draggedItem, fileInput, feedbackState,
+                    currentItems, dragTarget, draggedItem, fileInput, imgInput, feedbackState,
                     openAdmin, closeAdmin, restartGame, addCategory, removeCategory, addItem, removeItem, tryAutoEmoji,
                     downloadConfig, triggerFileInput, handleFileUpload,
+                    triggerImgUpload, handleImgUpload, showExampleModal,
                     startDrag, getQuadrantStyle, getCompletedItems, getCompletedItemStyle,
-                    containerSizeStyle, gameItemSizeStyle
+                    containerSizeStyle, gameItemSizeStyle,
+                    fbPicker, fbNavigate, fbSelectImage, fbConfirm, fbClearImage,
+                    themePicker, fetchThemes, loadTheme
                 };
             }
         }).mount('#app');
